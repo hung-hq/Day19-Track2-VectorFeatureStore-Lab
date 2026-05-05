@@ -79,24 +79,26 @@ client.create_collection(
 # **Hint:** xem `app/search.py` `_build_vector_index()` để tham khảo pattern.
 
 # %%
-# TODO: implement the embed + upsert loop here.
+# Embed + upsert in batches; keep memory footprint steady.
 # Expected outcome: client.count("lab19") == 1000
 # (~30 seconds on first run as fastembed downloads the model.)
 
 BATCH = 64
-points: list[PointStruct] = []
 for start in range(0, len(docs), BATCH):
     batch = docs[start:start + BATCH]
     texts = [d["title"] + " " + d["text"] for d in batch]
     vectors = list(embedder.embed(texts))
+    points = []
     for i, (d, v) in enumerate(zip(batch, vectors)):
-        points.append(PointStruct(
-            id=start + i,
-            vector=v.tolist(),
-            payload={"doc_id": d["doc_id"], "topic": d["topic"], "title": d["title"]},
-        ))
+        points.append(
+            PointStruct(
+                id=start + i,
+                vector=v.tolist(),
+                payload={"doc_id": d["doc_id"], "topic": d["topic"], "title": d["title"]},
+            )
+        )
+    client.upsert(collection_name="lab19", points=points)
 
-client.upsert(collection_name="lab19", points=points)
 n_indexed = client.count(collection_name="lab19").count
 print(f"Indexed: {n_indexed} vectors")
 assert n_indexed == 1000, f"expected 1000 indexed, got {n_indexed}"
